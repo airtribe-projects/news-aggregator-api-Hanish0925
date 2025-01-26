@@ -1,26 +1,33 @@
 const axios = require('axios');
+const dotenv = require('dotenv');
 
-const NEWS_API_KEY = 'abaf7578-3f5b-42ec-a444-1a54479d5944';
-const NEWS_API_URL = 'https://eventregistry.org/api/v1/article/getArticles';
+dotenv.config();
+
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
+console.log('NEWS_API_KEY:', NEWS_API_KEY); // Log the API key to verify it is loaded correctly
+
+const NEWS_API_URL = `https://newsapi.org/v2/everything`;
 
 const getNews = async (query, dateStart, dateEnd) => {
     try {
         const response = await axios.get(NEWS_API_URL, {
             params: {
-                query, 
+                q: query,
+                from: dateStart,
+                to: dateEnd,
+                sortBy: 'publishedAt',
+                language: 'en',
                 apiKey: NEWS_API_KEY,
-                lang: 'eng', 
-                dateStart, 
-                dateEnd, 
             },
         });
-        const articles = response.data.articles || []; 
+        const articles = response.data.articles || [];
         return {
-            news: articles.map(article => ({
+            totalResults: response.data.totalResults,
+            articles: articles.map(article => ({
                 title: article.title,
-                description: article.summary || 'No description available', 
+                description: article.description || 'No description available',
                 url: article.url,
-                publishedAt: article.date, 
+                publishedAt: article.publishedAt,
             })),
         };
     } catch (error) {

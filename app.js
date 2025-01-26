@@ -5,10 +5,12 @@ const User = require('./models/users');
 const authMiddleware = require('./middleware/auth');
 const {userSchema, newsQuerySchema} = require('./validation');
 const newsService = require('./services');
+const redisClient = require('./redisconnection');
 const app = express();
 const port = 3000;
 
 const JWT_SECRET = 'jwt_secret'; // secret key for JWT
+
 
 const MONGO_URL = 'mongodb+srv://user:user123@cluster0.bq8bj.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
@@ -119,28 +121,37 @@ app.put('/users/preferences', authMiddleware, async (req, res) => {
   });
   
 
-// Fetching news
+// Fetching news with reddis caching
 app.get('/news', authMiddleware, async (req, res) => {
-    console.log('Authorization Header:', req.headers.authorization);
+  console.log('Authorization Header:', req.headers.authorization);
 
-    const { error, value } = newsQuerySchema.validate(req.query);
-    if (error) {
-        console.error('Validation Error:', error.details[0].message);
-        return res.status(400).send({ message: 'Validation Error', details: error.details[0].message });
-    }
-    const { query, dateStart, dateEnd } = value;
+  const { error, value } = newsQuerySchema.validate(req.query);
+  if (error) {
+      console.error('Validation Error:', error.details[0].message);
+      return res.status(400).send({ message: 'Validation Error', details: error.details[0].message });
+  }
+  const { query, dateStart, dateEnd } = value;
 
-    try {
-        const news = await newsService.getNews(query, dateStart, dateEnd);
-        if (!news || Object.keys(news).length === 0) {
-            console.error('No news found');
-            return res.status(404).json({ message: 'No news found' });
-        }
-        res.status(200).json(news);
-    } catch (error) {
-        console.error('Error Fetching News:', error.message);
-        res.status(500).send('Error fetching news');
+  try {
+    const news = await newsService.getNews(query, dateStart, dateEnd);
+    if (news.status === "error") {
+        return res.status(500).json({
+            success: false,
+            message: news.message
+        });
     }
+    return res.json({
+        success: true,
+        total_results: news.totalResults,
+        news: news.articles
+    });
+} catch (error) {
+    console.error('Error Fetching News:', error.message);
+    return res.status(500).json({
+        success: false,
+        message: error.message
+    });
+}
 });
 
 module.exports = app;
